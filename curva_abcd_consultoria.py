@@ -127,25 +127,22 @@ if uploaded_file is not None:
             st.plotly_chart(fig_auc, use_container_width=True)
             
         with graf_col2:
+           with graf_col2:
             st.subheader("Evolução da Curva (Ranking)")
             
-            # Gráfico de Linha em Degraus para as Curvas (A, B, C, D)
-            # Definimos a ordem das categorias no eixo Y para que o A fique sempre no topo
-            ordem_curva = ["D", "C", "B", "A"] 
-            
+            # Gráfico de Linha em Degraus
             fig_curva = px.line(
                 df_consultor, 
                 x="Data", 
                 y="Curva AuC", 
                 markers=True,
-                category_orders={"Curva AuC": ordem_curva},
-                color_discrete_sequence=['#FF8F00'] # Laranja/Âmbar de alto contraste
+                color_discrete_sequence=['#FF8F00'] # Laranja/Âmbar
             )
             
-            # O parâmetro 'hv' cria uma linha reta horizontal e depois vertical, 
-            # ideal para progressão de níveis/ranqueamentos.
+            # Formato de degrau (step-line)
             fig_curva.update_traces(line_shape='hv') 
             
+            # Ajuste de Layout forçando a ordem do eixo Y
             fig_curva.update_layout(
                 xaxis_title="Período",
                 yaxis_title="Ranking (Curva)",
@@ -154,7 +151,9 @@ if uploaded_file is not None:
                 yaxis=dict(
                     showgrid=True, 
                     gridcolor='rgba(200,200,200,0.3)',
-                    type='category' # Força o eixo a tratar como categoria (D, C, B, A)
+                    type='category',
+                    categoryorder='array',
+                    categoryarray=['D', 'C', 'B', 'A'] # Crava o D na base e o A no topo
                 )
             )
             st.plotly_chart(fig_curva, use_container_width=True)
