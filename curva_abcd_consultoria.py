@@ -200,4 +200,64 @@ if uploaded_file is not None:
             
             fig_auc_rec.add_trace(
                 go.Scatter(
-                    x=df_
+                    x=df_consultor['Data'], 
+                    y=df_consultor['Receita'], 
+                    name="Receita", 
+                    mode='lines+markers', 
+                    line=dict(color='#00C853', width=3),
+                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Receita:</b> R$ %{y:,.2f}<extra></extra>"
+                ), 
+                secondary_y=True
+            )
+            
+            fig_auc_rec.update_layout(
+                xaxis_title="Período", 
+                plot_bgcolor="rgba(0,0,0,0)", 
+                margin=dict(l=0, r=0, t=30, b=0),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                separators=",." # Garante a inversão de vírgula e ponto para decimais e milhares
+            )
+            
+            fig_auc_rec.update_yaxes(title_text="Volume de AuC (R$)", secondary_y=False, showgrid=True, gridcolor='rgba(200,200,200,0.3)', tickformat=",.2f")
+            fig_auc_rec.update_yaxes(title_text="Receita Mensal (R$)", secondary_y=True, showgrid=False, tickformat=",.2f")
+            
+            st.plotly_chart(fig_auc_rec, use_container_width=True)
+            
+        with graf_col2:
+            st.subheader("Comparativo de Curvas (Rankings)")
+            
+            fig_curvas = go.Figure()
+            
+            fig_curvas.add_trace(
+                go.Scatter(
+                    x=df_consultor['Data'], 
+                    y=df_consultor['Curva AuC'], 
+                    name="Curva AuC", 
+                    mode='lines+markers', 
+                    line_shape='hv', 
+                    line=dict(color='#1E88E5', width=3)
+                )
+            )
+            
+            curva_receita_col = 'Curva Receita do Consultor' if 'Curva Receita do Consultor' in df_consultor.columns else 'Curva Receita'
+            fig_curvas.add_trace(
+                go.Scatter(
+                    x=df_consultor['Data'], 
+                    y=df_consultor.get(curva_receita_col, pd.Series()), 
+                    name="Curva Receita", 
+                    mode='lines+markers', 
+                    line_shape='hv', 
+                    line=dict(color='#00C853', width=3)
+                )
+            )
+            
+            fig_curvas.update_layout(
+                xaxis_title="Período", 
+                yaxis_title="Ranking (Curva)", 
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=0, r=0, t=30, b=0), 
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)', type='category', categoryorder='array', categoryarray=['D', 'C', 'B', 'A'])
+            )
+            
+            st.plotly_chart(fig_curvas, use_container_width=True)
