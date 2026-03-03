@@ -4,14 +4,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# 1. Configuração inicial da página
+# 1. Configuração inicial da página (SEMPRE a primeira linha do Streamlit)
 st.set_page_config(
     page_title="Analisador de Performance - Portfel", 
     page_icon="📊",
     layout="wide"
 )
 
-# Título e cabeçalho da aplicação
 st.title("📊 Analisador de Performance Individual - Portfel")
 st.markdown("Faça o upload da planilha com a base de dados unificada (Master) para iniciar a análise.")
 
@@ -68,7 +67,6 @@ if uploaded_file is not None:
         # ==========================================
         st.header("👤 Ficha do Consultor")
         
-        # BLOCO 1: Identificação
         id_col1, id_col2, id_col3 = st.columns(3)
         with id_col1:
             st.metric("Nome", str(registro_recente.get('Nome', '-')))
@@ -79,7 +77,6 @@ if uploaded_file is not None:
             
         st.markdown("<br>", unsafe_allow_html=True)
             
-        # BLOCO 2: Performance Financeira
         fin_col1, fin_col2, fin_col3, fin_col4 = st.columns(4)
         
         auc_recente = float(registro_recente.get('AuC', 0))
@@ -99,7 +96,6 @@ if uploaded_file is not None:
             
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # BLOCO 3: Informações Secundárias
         st.markdown("#### Informações Secundárias")
         sec_col1, sec_col2, sec_col3, sec_col4 = st.columns(4)
         with sec_col1:
@@ -132,4 +128,76 @@ if uploaded_file is not None:
             if valor_antigo > 0:
                 crescimento_percentual = (crescimento_absoluto_total / valor_antigo) * 100
             else:
-                st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
+                crescimento_percentual = 100.0 if valor_atual > 0 else 0.0
+                
+            return media_mensal_crescimento, crescimento_percentual
+
+        def formatar_moeda(valor):
+            if pd.isna(valor): return "-"
+            sinal = "-" if valor < 0 else ""
+            valor_abs = abs(valor)
+            return f"{sinal}R$ {valor_abs:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        tab_auc, tab_receita = st.tabs(["Crescimento do AuC", "Crescimento da Receita"])
+        periodos = [("3 Meses", 3), ("6 Meses", 6), ("12 Meses", 12)]
+        
+        with tab_auc:
+            cols_auc = st.columns(3)
+            for col, (label, meses) in zip(cols_auc, periodos):
+                med_mensal, perc_total = calcular_crescimento(df_consultor, 'AuC', meses)
+                with col:
+                    if med_mensal is not None:
+                        st.metric(
+                            label=f"Média Mensal (Últ. {label})", 
+                            value=formatar_moeda(med_mensal), 
+                            delta=f"{perc_total:+.2f}% no período",
+                            delta_color="normal"
+                        )
+                    else:
+                        st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
+
+        with tab_receita:
+            cols_rec = st.columns(3)
+            for col, (label, meses) in zip(cols_rec, periodos):
+                med_mensal, perc_total = calcular_crescimento(df_consultor, 'Receita', meses)
+                with col:
+                    if med_mensal is not None:
+                        st.metric(
+                            label=f"Média Mensal (Últ. {label})", 
+                            value=formatar_moeda(med_mensal), 
+                            delta=f"{perc_total:+.2f}% no período",
+                            delta_color="normal"
+                        )
+                    else:
+                        st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
+        
+        st.divider()
+        
+        # ==========================================
+        # 6. GRÁFICOS DE EVOLUÇÃO (PADRÃO BRASILEIRO)
+        # ==========================================
+        st.header("📈 Evolução Histórica")
+        
+        graf_col1, graf_col2 = st.columns(2)
+        
+        with graf_col1:
+            st.subheader("AuC vs Receita")
+            
+            fig_auc_rec = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            fig_auc_rec.add_trace(
+                go.Scatter(
+                    x=df_consultor['Data'], 
+                    y=df_consultor['AuC'], 
+                    name="AuC (PL)", 
+                    fill='tozeroy', 
+                    mode='lines+markers', 
+                    line=dict(color='#1E88E5'),
+                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>AuC:</b> R$ %{y:,.2f}<extra></extra>"
+                ), 
+                secondary_y=False
+            )
+            
+            fig_auc_rec.add_trace(
+                go.Scatter(
+                    x=df_
