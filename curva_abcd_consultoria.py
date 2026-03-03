@@ -132,3 +132,4 @@ if uploaded_file is not None:
             if valor_antigo > 0:
                 crescimento_percentual = (crescimento_absoluto_total / valor_antigo) * 100
             else:
+                st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
