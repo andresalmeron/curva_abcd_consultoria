@@ -114,13 +114,12 @@ if uploaded_file is not None:
         st.divider()
         
         # ==========================================
-        # 5. CRESCIMENTO MÉDIO (NOVIDADE)
+        # 5. CRESCIMENTO MÉDIO 
         # ==========================================
         st.header("🚀 Crescimento Médio da Carteira")
         st.markdown("Os valores abaixo representam a **média de crescimento mensal** (em R$) dentro do período analisado. O percentual indica o crescimento total no mesmo intervalo.")
         
         def calcular_crescimento(df_calc, coluna, meses_atras):
-            """Calcula a média de crescimento mensal e o percentual de crescimento no período."""
             if len(df_calc) < meses_atras + 1:
                 return None, None
                 
@@ -132,116 +131,4 @@ if uploaded_file is not None:
             
             if valor_antigo > 0:
                 crescimento_percentual = (crescimento_absoluto_total / valor_antigo) * 100
-            else:
-                crescimento_percentual = 100.0 if valor_atual > 0 else 0.0
-                
-            return media_mensal_crescimento, crescimento_percentual
-
-        def formatar_moeda(valor):
-            if pd.isna(valor): return "-"
-            sinal = "-" if valor < 0 else ""
-            valor_abs = abs(valor)
-            return f"{sinal}R$ {valor_abs:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-        # Layout em abas (tabs) para não poluir visualmente
-        tab_auc, tab_receita = st.tabs(["Crescimento do AuC", "Crescimento da Receita"])
-        
-        periodos = [("3 Meses", 3), ("6 Meses", 6), ("12 Meses", 12)]
-        
-        # --- Aba do AuC ---
-        with tab_auc:
-            cols_auc = st.columns(3)
-            for col, (label, meses) in zip(cols_auc, periodos):
-                med_mensal, perc_total = calcular_crescimento(df_consultor, 'AuC', meses)
-                with col:
-                    if med_mensal is not None:
-                        # Usando st.metric que já tem a setinha verde/vermelha nativa
-                        st.metric(
-                            label=f"Média Mensal (Últ. {label})", 
-                            value=formatar_moeda(med_mensal), 
-                            delta=f"{perc_total:+.2f}% no período",
-                            delta_color="normal"
-                        )
-                    else:
-                        st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
-
-        # --- Aba da Receita ---
-        with tab_receita:
-            cols_rec = st.columns(3)
-            for col, (label, meses) in zip(cols_rec, periodos):
-                med_mensal, perc_total = calcular_crescimento(df_consultor, 'Receita', meses)
-                with col:
-                    if med_mensal is not None:
-                        st.metric(
-                            label=f"Média Mensal (Últ. {label})", 
-                            value=formatar_moeda(med_mensal), 
-                            delta=f"{perc_total:+.2f}% no período",
-                            delta_color="normal"
-                        )
-                    else:
-                        st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
-        
-        st.divider()
-        
-        # ==========================================
-        # 6. GRÁFICOS DE EVOLUÇÃO
-        # ==========================================
-        st.header("📈 Evolução Histórica")
-        
-        graf_col1, graf_col2 = st.columns(2)
-        
-        with graf_col1:
-            st.subheader("AuC vs Receita")
-            
-            fig_auc_rec = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            fig_auc_rec.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], y=df_consultor['AuC'], 
-                    name="AuC (PL)", fill='tozeroy', mode='lines+markers', line=dict(color='#1E88E5')
-                ), secondary_y=False
-            )
-            
-            fig_auc_rec.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], y=df_consultor['Receita'], 
-                    name="Receita", mode='lines+markers', line=dict(color='#00C853', width=3)
-                ), secondary_y=True
-            )
-            
-            fig_auc_rec.update_layout(
-                xaxis_title="Período", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            fig_auc_rec.update_yaxes(title_text="Volume de AuC (R$)", secondary_y=False, showgrid=True, gridcolor='rgba(200,200,200,0.3)')
-            fig_auc_rec.update_yaxes(title_text="Receita Mensal (R$)", secondary_y=True, showgrid=False)
-            
-            st.plotly_chart(fig_auc_rec, use_container_width=True)
-            
-        with graf_col2:
-            st.subheader("Comparativo de Curvas (Rankings)")
-            
-            fig_curvas = go.Figure()
-            
-            fig_curvas.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], y=df_consultor['Curva AuC'], 
-                    name="Curva AuC", mode='lines+markers', line_shape='hv', line=dict(color='#1E88E5', width=3)
-                )
-            )
-            
-            curva_receita_col = 'Curva Receita do Consultor' if 'Curva Receita do Consultor' in df_consultor.columns else 'Curva Receita'
-            fig_curvas.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], y=df_consultor.get(curva_receita_col, pd.Series()), 
-                    name="Curva Receita", mode='lines+markers', line_shape='hv', line=dict(color='#00C853', width=3)
-                )
-            )
-            
-            fig_curvas.update_layout(
-                xaxis_title="Período", yaxis_title="Ranking (Curva)", plot_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)', type='category', categoryorder='array', categoryarray=['D', 'C', 'B', 'A'])
-            )
-            
-            st.plotly_chart(fig_curvas, use_container_width=True)
+            else
