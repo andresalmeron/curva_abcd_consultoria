@@ -84,6 +84,11 @@ if uploaded_file is not None:
             if pd.isna(valor): return "-"
             return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+        # Novo formatador exclusivo para o Tooltip (escapando o cifrão para evitar a fonte de matemática)
+        def formatar_moeda_tooltip(valor):
+            if pd.isna(valor): return "-"
+            return f"R\\$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
         auc_recente = float(registro_recente.get('AuC', 0))
         auc_formatado = formatar_moeda_simples(auc_recente)
         
@@ -95,39 +100,38 @@ if uploaded_file is not None:
         
         # --- LÓGICA DO HOVER (TOOLTIP) DE AuC ---
         def obter_metas_auc(meses):
-            """Retorna as metas (C, B, A) baseado no tempo de casa"""
             if pd.isna(meses):
                 return None, None, None
             meses = float(meses)
-            if meses < 6: # Cobre de 0 a 5 meses
+            if meses < 6:
                 return 1800000, 3600000, 7200000
-            elif meses < 12: # 6 a 11 meses
+            elif meses < 12:
                 return 4800000, 9600000, 19200000
-            elif meses < 24: # 12 a 23 meses
+            elif meses < 24:
                 return 7500000, 15000000, 30000000
-            else: # 24+ meses
+            else:
                 return 12000000, 24000000, 48000000
 
-        texto_hover_auc = f"Tempo de casa atual: {tempo_meses_atual} meses.\n\n"
+        texto_hover_auc = f"Tempo de casa: {tempo_meses_atual} meses\n\n"
         metas = obter_metas_auc(tempo_meses_atual)
         
         if metas[0] is not None and curva_auc_atual in ['A', 'B', 'C', 'D']:
             meta_c, meta_b, meta_a = metas
-            texto_hover_auc += f"🎯 Enquadramento na Curva {curva_auc_atual}:\n\n"
+            texto_hover_auc += f"Enquadramento na Curva {curva_auc_atual}:\n"
             
             if curva_auc_atual == 'A':
-                texto_hover_auc += f"• Mínimo Exigido: {formatar_moeda_simples(meta_a)}\n"
-                texto_hover_auc += f"• Próximo Nível: Nível Máximo Atingido! 🚀"
+                texto_hover_auc += f"- Mínimo Exigido: {formatar_moeda_tooltip(meta_a)}\n"
+                texto_hover_auc += f"- Próximo Nível: Nível Máximo Atingido"
             elif curva_auc_atual == 'B':
-                texto_hover_auc += f"• Mínimo Exigido: {formatar_moeda_simples(meta_b)}\n"
-                texto_hover_auc += f"• Próximo Nível (A): {formatar_moeda_simples(meta_a)}"
+                texto_hover_auc += f"- Mínimo Exigido: {formatar_moeda_tooltip(meta_b)}\n"
+                texto_hover_auc += f"- Próximo Nível (A): {formatar_moeda_tooltip(meta_a)}"
             elif curva_auc_atual == 'C':
-                texto_hover_auc += f"• Mínimo Exigido: {formatar_moeda_simples(meta_c)}\n"
-                texto_hover_auc += f"• Próximo Nível (B): {formatar_moeda_simples(meta_b)}"
+                texto_hover_auc += f"- Mínimo Exigido: {formatar_moeda_tooltip(meta_c)}\n"
+                texto_hover_auc += f"- Próximo Nível (B): {formatar_moeda_tooltip(meta_b)}"
             elif curva_auc_atual == 'D':
-                texto_hover_auc += f"• Próximo Nível (C): {formatar_moeda_simples(meta_c)}"
+                texto_hover_auc += f"- Próximo Nível (C): {formatar_moeda_tooltip(meta_c)}"
         else:
-            texto_hover_auc = "Não foi possível calcular o enquadramento (Dados ou curva inválidos)."
+            texto_hover_auc = "Não foi possível calcular o enquadramento."
             
         with fin_col1:
             st.metric("AuC Atual (PL)", auc_formatado)
