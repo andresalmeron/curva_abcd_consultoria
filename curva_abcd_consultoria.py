@@ -80,18 +80,62 @@ if uploaded_file is not None:
             
         fin_col1, fin_col2, fin_col3, fin_col4 = st.columns(4)
         
+        def formatar_moeda_simples(valor):
+            if pd.isna(valor): return "-"
+            return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
         auc_recente = float(registro_recente.get('AuC', 0))
-        auc_formatado = f"R$ {auc_recente:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        auc_formatado = formatar_moeda_simples(auc_recente)
         
         receita_recente = float(registro_recente.get('Receita', 0))
-        receita_formatada = f"R$ {receita_recente:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        receita_formatada = formatar_moeda_simples(receita_recente)
         
+        curva_auc_atual = str(registro_recente.get('Curva AuC', '-')).upper()
+        tempo_meses_atual = registro_recente.get('Tempo (meses)', 0)
+        
+        # --- LÓGICA DO HOVER (TOOLTIP) DE AuC ---
+        def obter_metas_auc(meses):
+            """Retorna as metas (C, B, A) baseado no tempo de casa"""
+            if pd.isna(meses):
+                return None, None, None
+            meses = float(meses)
+            if meses < 6: # Cobre de 0 a 5 meses
+                return 1800000, 3600000, 7200000
+            elif meses < 12: # 6 a 11 meses
+                return 4800000, 9600000, 19200000
+            elif meses < 24: # 12 a 23 meses
+                return 7500000, 15000000, 30000000
+            else: # 24+ meses
+                return 12000000, 24000000, 48000000
+
+        texto_hover_auc = f"Tempo de casa atual: {tempo_meses_atual} meses.\n\n"
+        metas = obter_metas_auc(tempo_meses_atual)
+        
+        if metas[0] is not None and curva_auc_atual in ['A', 'B', 'C', 'D']:
+            meta_c, meta_b, meta_a = metas
+            texto_hover_auc += f"🎯 Enquadramento na Curva {curva_auc_atual}:\n\n"
+            
+            if curva_auc_atual == 'A':
+                texto_hover_auc += f"• Mínimo Exigido: {formatar_moeda_simples(meta_a)}\n"
+                texto_hover_auc += f"• Próximo Nível: Nível Máximo Atingido! 🚀"
+            elif curva_auc_atual == 'B':
+                texto_hover_auc += f"• Mínimo Exigido: {formatar_moeda_simples(meta_b)}\n"
+                texto_hover_auc += f"• Próximo Nível (A): {formatar_moeda_simples(meta_a)}"
+            elif curva_auc_atual == 'C':
+                texto_hover_auc += f"• Mínimo Exigido: {formatar_moeda_simples(meta_c)}\n"
+                texto_hover_auc += f"• Próximo Nível (B): {formatar_moeda_simples(meta_b)}"
+            elif curva_auc_atual == 'D':
+                texto_hover_auc += f"• Próximo Nível (C): {formatar_moeda_simples(meta_c)}"
+        else:
+            texto_hover_auc = "Não foi possível calcular o enquadramento (Dados ou curva inválidos)."
+            
         with fin_col1:
             st.metric("AuC Atual (PL)", auc_formatado)
         with fin_col2:
             st.metric("Receita Bruta Atual", receita_formatada)
         with fin_col3:
-            st.metric("Curva AuC", str(registro_recente.get('Curva AuC', '-')))
+            # Tooltip ativado no parâmetro help
+            st.metric("Curva AuC", curva_auc_atual, help=texto_hover_auc)
         with fin_col4:
             st.metric("Curva Receita", str(registro_recente.get('Curva Receita do Consultor', '-')))
             
@@ -133,12 +177,6 @@ if uploaded_file is not None:
                 
             return media_mensal_crescimento, crescimento_percentual
 
-        def formatar_moeda(valor):
-            if pd.isna(valor): return "-"
-            sinal = "-" if valor < 0 else ""
-            valor_abs = abs(valor)
-            return f"{sinal}R$ {valor_abs:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
         tab_auc, tab_receita = st.tabs(["Crescimento do AuC", "Crescimento da Receita"])
         periodos = [("3 Meses", 3), ("6 Meses", 6), ("12 Meses", 12)]
         
@@ -148,12 +186,9 @@ if uploaded_file is not None:
                 med_mensal, perc_total = calcular_crescimento(df_consultor, 'AuC', meses)
                 with col:
                     if med_mensal is not None:
-                        st.metric(
-                            label=f"Média Mensal (Últ. {label})", 
-                            value=formatar_moeda(med_mensal), 
-                            delta=f"{perc_total:+.2f}% no período",
-                            delta_color="normal"
-                        )
+                        sinal = "-" if med_mensal < 0 else ""
+                        valor_formatado = f"{sinal}R$ {abs(med_mensal):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        st.metric(label=f"Média Mensal (Últ. {label})", value=valor_formatado, delta=f"{perc_total:+.2f}% no período", delta_color="normal")
                     else:
                         st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
 
@@ -163,12 +198,9 @@ if uploaded_file is not None:
                 med_mensal, perc_total = calcular_crescimento(df_consultor, 'Receita', meses)
                 with col:
                     if med_mensal is not None:
-                        st.metric(
-                            label=f"Média Mensal (Últ. {label})", 
-                            value=formatar_moeda(med_mensal), 
-                            delta=f"{perc_total:+.2f}% no período",
-                            delta_color="normal"
-                        )
+                        sinal = "-" if med_mensal < 0 else ""
+                        valor_formatado = f"{sinal}R$ {abs(med_mensal):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        st.metric(label=f"Média Mensal (Últ. {label})", value=valor_formatado, delta=f"{perc_total:+.2f}% no período", delta_color="normal")
                     else:
                         st.metric(label=f"Média Mensal (Últ. {label})", value="Histórico Insuficiente")
         
@@ -179,129 +211,31 @@ if uploaded_file is not None:
         # ==========================================
         st.header("📈 Evolução Histórica")
         
-        # Linha 1: Gráficos de AuC e Receitas lado a lado
         graf_col1, graf_col2 = st.columns(2)
         
         with graf_col1:
             st.subheader("Evolução do AuC (PL)")
-            
             fig_auc = go.Figure()
-            
-            fig_auc.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], 
-                    y=df_consultor['AuC'], 
-                    name="AuC (PL)", 
-                    fill='tozeroy', 
-                    mode='lines+markers', 
-                    line=dict(color='#1E88E5', width=3),
-                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>AuC:</b> R$ %{y:,.2f}<extra></extra>"
-                )
-            )
-            
-            fig_auc.update_layout(
-                xaxis_title="Período", 
-                yaxis_title="Volume de AuC (R$)",
-                plot_bgcolor="rgba(0,0,0,0)", 
-                margin=dict(l=0, r=0, t=30, b=0),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                separators=",."
-            )
+            fig_auc.add_trace(go.Scatter(x=df_consultor['Data'], y=df_consultor['AuC'], name="AuC (PL)", fill='tozeroy', mode='lines+markers', line=dict(color='#1E88E5', width=3), hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>AuC:</b> R$ %{y:,.2f}<extra></extra>"))
+            fig_auc.update_layout(xaxis_title="Período", yaxis_title="Volume de AuC (R$)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), separators=",.")
             fig_auc.update_yaxes(showgrid=True, gridcolor='rgba(200,200,200,0.3)', tickformat=",.2f")
-            
             st.plotly_chart(fig_auc, use_container_width=True)
             
         with graf_col2:
             st.subheader("Composição de Receitas")
-            
             fig_rec = go.Figure()
-            
-            # Receita Bruta (Destaque principal em verde)
-            fig_rec.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], 
-                    y=df_consultor['Receita'], 
-                    name="Receita Bruta", 
-                    mode='lines+markers', 
-                    line=dict(color='#00C853', width=3),
-                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Bruta:</b> R$ %{y:,.2f}<extra></extra>"
-                )
-            )
-            
-            # Receita Portfel (Roxo)
-            fig_rec.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], 
-                    y=df_consultor['Receita Portfel'], 
-                    name="Receita Portfel", 
-                    mode='lines+markers', 
-                    line=dict(color='#8E24AA', width=2),
-                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Portfel:</b> R$ %{y:,.2f}<extra></extra>"
-                )
-            )
-            
-            # Receita Parceiro (Laranja)
-            fig_rec.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], 
-                    y=df_consultor['Receita Parceiro(a)'], 
-                    name="Receita Parceiro(a)", 
-                    mode='lines+markers', 
-                    line=dict(color='#FF8F00', width=2),
-                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Parceiro:</b> R$ %{y:,.2f}<extra></extra>"
-                )
-            )
-            
-            fig_rec.update_layout(
-                xaxis_title="Período", 
-                yaxis_title="Receita Mensal (R$)",
-                plot_bgcolor="rgba(0,0,0,0)", 
-                margin=dict(l=0, r=0, t=30, b=0),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                separators=",.",
-                hovermode="x unified" # Exibe os três dados juntos quando passa o mouse no eixo X
-            )
+            fig_rec.add_trace(go.Scatter(x=df_consultor['Data'], y=df_consultor['Receita'], name="Receita Bruta", mode='lines+markers', line=dict(color='#00C853', width=3), hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Bruta:</b> R$ %{y:,.2f}<extra></extra>"))
+            fig_rec.add_trace(go.Scatter(x=df_consultor['Data'], y=df_consultor['Receita Portfel'], name="Receita Portfel", mode='lines+markers', line=dict(color='#8E24AA', width=2), hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Portfel:</b> R$ %{y:,.2f}<extra></extra>"))
+            fig_rec.add_trace(go.Scatter(x=df_consultor['Data'], y=df_consultor['Receita Parceiro(a)'], name="Receita Parceiro(a)", mode='lines+markers', line=dict(color='#FF8F00', width=2), hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Parceiro:</b> R$ %{y:,.2f}<extra></extra>"))
+            fig_rec.update_layout(xaxis_title="Período", yaxis_title="Receita Mensal (R$)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), separators=",.", hovermode="x unified")
             fig_rec.update_yaxes(showgrid=True, gridcolor='rgba(200,200,200,0.3)', tickformat=",.2f")
-            
             st.plotly_chart(fig_rec, use_container_width=True)
             
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Linha 2: Gráfico de Curvas em largura total (para melhor visualização dos degraus)
         st.subheader("Comparativo de Curvas (Rankings)")
-        
         fig_curvas = go.Figure()
-        
-        fig_curvas.add_trace(
-            go.Scatter(
-                x=df_consultor['Data'], 
-                y=df_consultor['Curva AuC'], 
-                name="Curva AuC", 
-                mode='lines+markers', 
-                line_shape='hv', 
-                line=dict(color='#1E88E5', width=3)
-            )
-        )
-        
+        fig_curvas.add_trace(go.Scatter(x=df_consultor['Data'], y=df_consultor['Curva AuC'], name="Curva AuC", mode='lines+markers', line_shape='hv', line=dict(color='#1E88E5', width=3)))
         curva_receita_col = 'Curva Receita do Consultor' if 'Curva Receita do Consultor' in df_consultor.columns else 'Curva Receita'
-        fig_curvas.add_trace(
-            go.Scatter(
-                x=df_consultor['Data'], 
-                y=df_consultor.get(curva_receita_col, pd.Series()), 
-                name="Curva Receita", 
-                mode='lines+markers', 
-                line_shape='hv', 
-                line=dict(color='#00C853', width=3)
-            )
-        )
-        
-        fig_curvas.update_layout(
-            xaxis_title="Período", 
-            yaxis_title="Ranking (Curva)", 
-            plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=0, r=0, t=30, b=0), 
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)', type='category', categoryorder='array', categoryarray=['D', 'C', 'B', 'A'])
-        )
-        
+        fig_curvas.add_trace(go.Scatter(x=df_consultor['Data'], y=df_consultor.get(curva_receita_col, pd.Series()), name="Curva Receita", mode='lines+markers', line_shape='hv', line=dict(color='#00C853', width=3)))
+        fig_curvas.update_layout(xaxis_title="Período", yaxis_title="Ranking (Curva)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)', type='category', categoryorder='array', categoryarray=['D', 'C', 'B', 'A']))
         st.plotly_chart(fig_curvas, use_container_width=True)
