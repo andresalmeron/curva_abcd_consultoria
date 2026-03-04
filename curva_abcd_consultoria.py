@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
-# 1. Configuração inicial da página (SEMPRE a primeira linha do Streamlit)
+# 1. Configuração inicial da página
 st.set_page_config(
     page_title="Analisador de Performance - Portfel", 
     page_icon="📊",
@@ -31,13 +30,15 @@ if uploaded_file is not None:
             df['AuC'] = df['AuC'].str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
         df['AuC'] = pd.to_numeric(df['AuC'], errors='coerce').fillna(0)
         
-        # Tratamento da Receita
-        if 'Receita' in df.columns:
-            if df['Receita'].dtype == 'object':
-                df['Receita'] = df['Receita'].str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
-            df['Receita'] = pd.to_numeric(df['Receita'], errors='coerce').fillna(0)
-        else:
-            df['Receita'] = 0.0
+        # Tratamento de TODAS as Receitas
+        colunas_receita = ['Receita', 'Receita Portfel', 'Receita Parceiro(a)']
+        for col in colunas_receita:
+            if col in df.columns:
+                if df[col].dtype == 'object':
+                    df[col] = df[col].str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            else:
+                df[col] = 0.0
             
         return df
     
@@ -88,7 +89,7 @@ if uploaded_file is not None:
         with fin_col1:
             st.metric("AuC Atual (PL)", auc_formatado)
         with fin_col2:
-            st.metric("Receita Atual", receita_formatada)
+            st.metric("Receita Bruta Atual", receita_formatada)
         with fin_col3:
             st.metric("Curva AuC", str(registro_recente.get('Curva AuC', '-')))
         with fin_col4:
@@ -174,90 +175,133 @@ if uploaded_file is not None:
         st.divider()
         
         # ==========================================
-        # 6. GRÁFICOS DE EVOLUÇÃO (PADRÃO BRASILEIRO)
+        # 6. GRÁFICOS DE EVOLUÇÃO (SEPARADOS)
         # ==========================================
         st.header("📈 Evolução Histórica")
         
+        # Linha 1: Gráficos de AuC e Receitas lado a lado
         graf_col1, graf_col2 = st.columns(2)
         
         with graf_col1:
-            st.subheader("AuC vs Receita")
+            st.subheader("Evolução do AuC (PL)")
             
-            fig_auc_rec = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_auc = go.Figure()
             
-            fig_auc_rec.add_trace(
+            fig_auc.add_trace(
                 go.Scatter(
                     x=df_consultor['Data'], 
                     y=df_consultor['AuC'], 
                     name="AuC (PL)", 
                     fill='tozeroy', 
                     mode='lines+markers', 
-                    line=dict(color='#1E88E5'),
+                    line=dict(color='#1E88E5', width=3),
                     hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>AuC:</b> R$ %{y:,.2f}<extra></extra>"
-                ), 
-                secondary_y=False
+                )
             )
             
-            fig_auc_rec.add_trace(
-                go.Scatter(
-                    x=df_consultor['Data'], 
-                    y=df_consultor['Receita'], 
-                    name="Receita", 
-                    mode='lines+markers', 
-                    line=dict(color='#00C853', width=3),
-                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Receita:</b> R$ %{y:,.2f}<extra></extra>"
-                ), 
-                secondary_y=True
-            )
-            
-            fig_auc_rec.update_layout(
+            fig_auc.update_layout(
                 xaxis_title="Período", 
+                yaxis_title="Volume de AuC (R$)",
                 plot_bgcolor="rgba(0,0,0,0)", 
                 margin=dict(l=0, r=0, t=30, b=0),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                separators=",." # Garante a inversão de vírgula e ponto para decimais e milhares
+                separators=",."
             )
+            fig_auc.update_yaxes(showgrid=True, gridcolor='rgba(200,200,200,0.3)', tickformat=",.2f")
             
-            fig_auc_rec.update_yaxes(title_text="Volume de AuC (R$)", secondary_y=False, showgrid=True, gridcolor='rgba(200,200,200,0.3)', tickformat=",.2f")
-            fig_auc_rec.update_yaxes(title_text="Receita Mensal (R$)", secondary_y=True, showgrid=False, tickformat=",.2f")
-            
-            st.plotly_chart(fig_auc_rec, use_container_width=True)
+            st.plotly_chart(fig_auc, use_container_width=True)
             
         with graf_col2:
-            st.subheader("Comparativo de Curvas (Rankings)")
+            st.subheader("Composição de Receitas")
             
-            fig_curvas = go.Figure()
+            fig_rec = go.Figure()
             
-            fig_curvas.add_trace(
+            # Receita Bruta (Destaque principal em verde)
+            fig_rec.add_trace(
                 go.Scatter(
                     x=df_consultor['Data'], 
-                    y=df_consultor['Curva AuC'], 
-                    name="Curva AuC", 
+                    y=df_consultor['Receita'], 
+                    name="Receita Bruta", 
                     mode='lines+markers', 
-                    line_shape='hv', 
-                    line=dict(color='#1E88E5', width=3)
+                    line=dict(color='#00C853', width=3),
+                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Bruta:</b> R$ %{y:,.2f}<extra></extra>"
                 )
             )
             
-            curva_receita_col = 'Curva Receita do Consultor' if 'Curva Receita do Consultor' in df_consultor.columns else 'Curva Receita'
-            fig_curvas.add_trace(
+            # Receita Portfel (Roxo)
+            fig_rec.add_trace(
                 go.Scatter(
                     x=df_consultor['Data'], 
-                    y=df_consultor.get(curva_receita_col, pd.Series()), 
-                    name="Curva Receita", 
+                    y=df_consultor['Receita Portfel'], 
+                    name="Receita Portfel", 
                     mode='lines+markers', 
-                    line_shape='hv', 
-                    line=dict(color='#00C853', width=3)
+                    line=dict(color='#8E24AA', width=2),
+                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Portfel:</b> R$ %{y:,.2f}<extra></extra>"
                 )
             )
             
-            fig_curvas.update_layout(
+            # Receita Parceiro (Laranja)
+            fig_rec.add_trace(
+                go.Scatter(
+                    x=df_consultor['Data'], 
+                    y=df_consultor['Receita Parceiro(a)'], 
+                    name="Receita Parceiro(a)", 
+                    mode='lines+markers', 
+                    line=dict(color='#FF8F00', width=2),
+                    hovertemplate="<b>Data:</b> %{x|%b/%Y}<br><b>Rec. Parceiro:</b> R$ %{y:,.2f}<extra></extra>"
+                )
+            )
+            
+            fig_rec.update_layout(
                 xaxis_title="Período", 
-                yaxis_title="Ranking (Curva)", 
-                plot_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=0, r=0, t=30, b=0), 
+                yaxis_title="Receita Mensal (R$)",
+                plot_bgcolor="rgba(0,0,0,0)", 
+                margin=dict(l=0, r=0, t=30, b=0),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)', type='category', categoryorder='array', categoryarray=['D', 'C', 'B', 'A'])
+                separators=",.",
+                hovermode="x unified" # Exibe os três dados juntos quando passa o mouse no eixo X
             )
+            fig_rec.update_yaxes(showgrid=True, gridcolor='rgba(200,200,200,0.3)', tickformat=",.2f")
             
-            st.plotly_chart(fig_curvas, use_container_width=True)
+            st.plotly_chart(fig_rec, use_container_width=True)
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Linha 2: Gráfico de Curvas em largura total (para melhor visualização dos degraus)
+        st.subheader("Comparativo de Curvas (Rankings)")
+        
+        fig_curvas = go.Figure()
+        
+        fig_curvas.add_trace(
+            go.Scatter(
+                x=df_consultor['Data'], 
+                y=df_consultor['Curva AuC'], 
+                name="Curva AuC", 
+                mode='lines+markers', 
+                line_shape='hv', 
+                line=dict(color='#1E88E5', width=3)
+            )
+        )
+        
+        curva_receita_col = 'Curva Receita do Consultor' if 'Curva Receita do Consultor' in df_consultor.columns else 'Curva Receita'
+        fig_curvas.add_trace(
+            go.Scatter(
+                x=df_consultor['Data'], 
+                y=df_consultor.get(curva_receita_col, pd.Series()), 
+                name="Curva Receita", 
+                mode='lines+markers', 
+                line_shape='hv', 
+                line=dict(color='#00C853', width=3)
+            )
+        )
+        
+        fig_curvas.update_layout(
+            xaxis_title="Período", 
+            yaxis_title="Ranking (Curva)", 
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=0, r=0, t=30, b=0), 
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)', type='category', categoryorder='array', categoryarray=['D', 'C', 'B', 'A'])
+        )
+        
+        st.plotly_chart(fig_curvas, use_container_width=True)
